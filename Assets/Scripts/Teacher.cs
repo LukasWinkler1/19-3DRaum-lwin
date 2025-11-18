@@ -1,75 +1,47 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.Networking;
 using TMPro;
-using System;
-using System.IO;
-
-[Serializable]
-public class TeacherData
+using System.Text.RegularExpressions;
+ 
+public class LehrerDetailsLoader : MonoBehaviour
 {
-    public string name;
-    public string sprechstunde;
-}
-
-public class Teacher : MonoBehaviour
-{
-    [Header("Textfeld für die Tafel")]
-    [SerializeField] private TextMeshProUGUI outputText;
-
-    [Header("Lokale JSON-Datei nutzen?")]
-    [SerializeField] private bool useLocalJson = true; // true = lokal, false = HTTP
-
-    [Header("Lokaler Pfad zur JSON-Datei")]
-    [SerializeField] private string localFilePath = @"C:\Users\winke\github\19-3DRaum-lwin\19-3DRaum-lwin\Assets\Scripts\teacher.json";
-
-    [Header("HTTP URL (optional)")]
-    [SerializeField] private string url = "https://htl-website.tld/api/lehrerdaten.json";
-
-    private void Start()
+    [Header("TMP Text Fields")]
+    public TextMeshProUGUI tmpText1; // Erstes Lehrerfeld
+    public TextMeshProUGUI tmpText2; // Zweites Lehrerfeld
+ 
+    [Header("URLs der Lehrer-Seiten")]
+    public string url1 = "https://www.htl-salzburg.ac.at/lehrerinnen-details/meerwald-stadler-susanne-prof-dipl-ing-g-009.html";
+    public string url2 = "https://www.htl-salzburg.ac.at/lehrerinnen-details/schweiberer-franz-prof-dipl-ing-c-205.html";
+ 
+    void Start()
     {
-        if (outputText == null)
+        if (tmpText1 != null)
+            StartCoroutine(LoadLehrerDetails(url1, tmpText1));
+ 
+        if (tmpText2 != null)
+            StartCoroutine(LoadLehrerDetails(url2, tmpText2));
+    }
+ 
+    IEnumerator LoadLehrerDetails(string url, TextMeshProUGUI tmpText)
+    {
+        UnityWebRequest www = UnityWebRequest.Get(url);
+        yield return www.SendWebRequest();
+ 
+        if (www.result != UnityWebRequest.Result.Success)
         {
-            Debug.LogError("Output Text ist nicht zugewiesen! Bitte TextMeshPro-Objekt zuweisen.");
-            return;
-        }
-
-        if (useLocalJson)
-        {
-            LoadLocalData();
+            tmpText.text = "Fehler beim Laden der Seite: " + www.error;
         }
         else
         {
-            Debug.LogError("HTTP-Loading ist aktuell nicht implementiert, da die HTL-Seite HTML liefert.");
-            outputText.text = "HTTP-Daten nicht verfügbar!";
-        }
-    }
-
-    // --- Lokale JSON laden ---
-    private void LoadLocalData()
-    {
-        try
-        {
-            if (!File.Exists(localFilePath))
-            {
-                Debug.LogError($"Datei nicht gefunden: {localFilePath}");
-                outputText.text = "Fehler beim Laden!";
-                return;
-            }
-
-            // Datei lesen
-            string json = File.ReadAllText(localFilePath);
-
-            // JSON parsen
-            TeacherData data = JsonUtility.FromJson<TeacherData>(json);
-
-            // Text auf Tafel setzen
-            outputText.text = $"Lehrer: {data.name}\nSprechstunde: {data.sprechstunde}";
-            Debug.Log("Lokales JSON geladen: " + json);
-        }
-        catch (Exception e)
-        {
-            outputText.text = "Fehler beim Laden!";
-            Debug.LogError(e.Message);
+            string html = www.downloadHandler.text;
+ 
+            // Regex zum Auslesen der Felder
+            string name = Regex.Match(html, @"<div class=""field Lehrername"">.*?<span class=""text"">(.*?)</span>", RegexOptions.Singleline).Groups[1].Value;
+            string raum = Regex.Match(html, @"<div class=""field Raum"">.*?<span class=""text"">(.*?)</span>", RegexOptions.Singleline).Groups[1].Value;
+            string sprechstunde = Regex.Match(html, @"<div class=""field SprStunde"">.*?<span class=""text"">(.*?)</span>", RegexOptions.Singleline).Groups[1].Value;
+ 
+            tmpText.text = $"Name: {name}\nRaum: {raum}\nSprechstunde: {sprechstunde}";
         }
     }
 }
-
